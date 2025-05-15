@@ -33,10 +33,11 @@ export default function WorkoutPlanDisplay({ workoutPlan }: WorkoutPlanDisplayPr
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="workout">Treinos</TabsTrigger>
           <TabsTrigger value="metrics">Métricas</TabsTrigger>
           <TabsTrigger value="recommendations">Recomendações</TabsTrigger>
+          <TabsTrigger value="calendar">Calendário</TabsTrigger>
         </TabsList>
 
         <TabsContent value="workout" className="space-y-6">
@@ -221,6 +222,100 @@ export default function WorkoutPlanDisplay({ workoutPlan }: WorkoutPlanDisplayPr
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+        <TabsContent value="calendar">
+          <Card>
+            <CardHeader>
+              <CardTitle>Calendário de Treino</CardTitle>
+              <CardDescription>Visão geral do seu plano de 9 semanas</CardDescription>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <div className="min-w-[800px]">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr>
+                      <th className="border p-2 bg-muted">Semana</th>
+                      <th className="border p-2 bg-muted">Segunda</th>
+                      <th className="border p-2 bg-muted">Terça</th>
+                      <th className="border p-2 bg-muted">Quarta</th>
+                      <th className="border p-2 bg-muted">Quinta</th>
+                      <th className="border p-2 bg-muted">Sexta</th>
+                      <th className="border p-2 bg-muted">Sábado</th>
+                      <th className="border p-2 bg-muted">Domingo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {workoutPlan.weeks.map((week) => (
+                      <tr key={week.weekNumber}>
+                        <td className="border p-2 font-medium">
+                          Semana {week.weekNumber}
+                          {week.isDeloadWeek ? " (Deload)" : ""}
+                        </td>
+                        {Array.from({ length: 7 }).map((_, dayIndex) => {
+                          // Determinar se este dia tem um treino ou é um dia de descanso
+                          const isWorkoutDay = dayIndex < week.workouts.length
+                          const isRestDay = !isWorkoutDay
+
+                          // Obter o treino ou atividade de descanso para este dia
+                          const workout = isWorkoutDay ? week.workouts[dayIndex] : null
+                          const restActivity = isRestDay
+                            ? week.restDayActivities[dayIndex - week.workouts.length]
+                            : null
+
+                          // Determinar a classe CSS com base no tipo de dia
+                          let bgClass = ""
+                          if (isWorkoutDay) {
+                            bgClass = week.isDeloadWeek ? "bg-amber-50" : "bg-blue-50"
+                          } else {
+                            bgClass = "bg-green-50"
+                          }
+
+                          return (
+                            <td key={dayIndex} className={`border p-2 ${bgClass}`}>
+                              {isWorkoutDay ? (
+                                <div>
+                                  <div className="font-medium">{workout?.name.split(" - ")[0]}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {workout?.targetMuscleGroups.join(", ")}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div className="font-medium">
+                                    {restActivity ? restActivity.name : "Descanso Total"}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {restActivity ? `${restActivity.duration} min` : "Recuperação"}
+                                  </div>
+                                </div>
+                              )}
+                            </td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 text-sm">
+                <p className="font-medium">Legenda:</p>
+                <div className="flex flex-wrap gap-4 mt-2">
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 bg-blue-50 border mr-2"></div>
+                    <span>Dia de Treino</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 bg-amber-50 border mr-2"></div>
+                    <span>Treino de Deload</span>
+                  </div>
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 bg-green-50 border mr-2"></div>
+                    <span>Dia de Descanso/Recuperação</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

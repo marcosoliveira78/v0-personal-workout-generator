@@ -1,10 +1,12 @@
-import type { UserProfile, SupplementRecommendation } from "@/types/UserProfile"
+import type { UserProfile } from "@/types/UserProfile"
 import type { WorkoutPlan, WorkoutWeek, Workout, Exercise, RestDayActivity } from "@/types/Workout"
 import { exerciseDatabase, deloadExercises } from "@/data/exerciseDatabase"
 import { restDayActivities } from "@/data/restDayActivities"
 import { supplementRecommendations, generalSupplements } from "@/data/supplementRecommendations"
 import { calculateBodyMetrics } from "@/utils/bodyMetrics"
-import { restActivityOptions, type RestActivityOption } from "@/data/restActivityOptions"
+import { restActivityOptions } from "@/data/restActivityOptions"
+import type { RestActivityOption } from "@/types/RestActivityOption"
+import type { SupplementRecommendation } from "@/types/Supplement"
 
 // Tradução das áreas de foco
 const focusAreaTranslations: Record<string, string> = {
@@ -365,7 +367,7 @@ function determineSplitType(daysPerWeek: number, focusArea: string): string {
   }
 }
 
-// Modificar a função selectRestDayActivities para considerar as preferências do usuário
+// Função para selecionar atividades para dias de descanso
 function selectRestDayActivities(profile: UserProfile, restDays: number, isDeloadWeek: boolean): RestDayActivity[] {
   if (restDays === 0) return []
 
@@ -421,8 +423,8 @@ function selectRestDayActivities(profile: UserProfile, restDays: number, isDeloa
     return selectedActivitiesList
   }
 
-  // Se o usuário selecionou atividades, usar as preferências do usuário
-  const userSelectedActivities: RestDayActivity[] = []
+  // Se o usuário selecionou atividades, criar combinações interessantes
+  const restDayActivitiesList: RestDayActivity[] = []
 
   // Mapear as opções de atividades para encontrar as correspondentes às preferências do usuário
   const activityOptionsMap = restActivityOptions.reduce(
@@ -433,47 +435,149 @@ function selectRestDayActivities(profile: UserProfile, restDays: number, isDeloa
     {} as Record<string, RestActivityOption>,
   )
 
-  // Criar atividades personalizadas com base nas preferências do usuário
+  // Categorizar atividades selecionadas
+  const cardioActivities = selectedActivities.filter((id) =>
+    ["walking", "cycling", "swimming", "light_elliptical", "hiking"].includes(id),
+  )
+
+  const recoveryActivities = selectedActivities.filter((id) =>
+    ["stretching", "yoga", "mobility", "foam_rolling", "meditation"].includes(id),
+  )
+
+  // Criar combinações para cada dia de descanso
   for (let i = 0; i < restDays; i++) {
-    // Selecionar uma atividade aleatória das preferências do usuário
-    const activityIndex = i % selectedActivities.length
-    const activityId = selectedActivities[activityIndex]
-    const preference = userPreferences[activityId]
-    const activityOption = activityOptionsMap[activityId]
+    // Decidir se vamos criar uma combinação ou usar uma única atividade
+    // Mais chance de combinação se o usuário selecionou várias atividades
+    const shouldCreateCombination = selectedActivities.length >= 3 && Math.random() > 0.3
+    let createdCombination = false
 
-    if (activityOption) {
-      // Determinar duração e distância com base nas preferências do usuário
-      const duration =
-        preference.minDuration !== undefined && preference.maxDuration !== undefined
-          ? Math.floor(Math.random() * (preference.maxDuration - preference.minDuration + 1)) + preference.minDuration
-          : activityOption.defaultMinDuration !== undefined && activityOption.defaultMaxDuration !== undefined
-            ? Math.floor(Math.random() * (activityOption.defaultMaxDuration - activityOption.defaultMinDuration + 1)) +
-              activityOption.defaultMinDuration
-            : 30
+    if (shouldCreateCombination) {
+      // Criar uma combinação baseada nas categorias disponíveis
+      if (cardioActivities.length >= 2 && Math.random() > 0.5) {
+        // Mini-triatlo ou combinação de cardio
+        const shuffledCardio = [...cardioActivities].sort(() => Math.random() - 0.5)
+        const selectedCardio = shuffledCardio.slice(0, Math.min(3, shuffledCardio.length))
 
-      let distanceText = ""
-      if (activityOption.hasDistance && preference.minDistance !== undefined && preference.maxDistance !== undefined) {
-        const distance = Number(
-          (Math.random() * (preference.maxDistance - preference.minDistance) + preference.minDistance).toFixed(1),
-        )
-        distanceText = ` (${distance} ${activityOption.unit})`
+        const cardioNames = selectedCardio.map((id) => activityOptionsMap[id].label)
+        const cardioDescription =
+          selectedCardio.length >= 3
+            ? "Mini-triatlo leve: combinação de atividades cardio de baixa intensidade"
+            : "Combinação de atividades cardio leves"
+
+        // Calcular duração total dividida entre as atividades
+        const totalDuration = Math.min(60, 20 * selectedCardio.length)
+        const durationPerActivity = Math.floor(totalDuration / selectedCardio.length)
+
+        restDayActivitiesList.push({
+          name: selectedCardio.length >= 3 ? "Mini-Triatlo Leve" : `Combo: ${cardioNames.join(" + ")}`,
+          description: `${cardioDescription}. Faça ${durationPerActivity} minutos de cada atividade em sequência.`,
+          duration: totalDuration,
+          intensity: "light",
+          benefits: [
+            "Recuperação ativa variada",
+            "Trabalho cardiovascular leve",
+            "Estímulo de diferentes grupos musculares",
+            "Redução da monotonia",
+          ],
+          notes: `Mantenha a intensidade baixa em todas as atividades. Este é um dia de recuperação, não de treino. Sugestão: ${cardioNames.join(" → ")}.`,
+        })
+        createdCombination = true
+      } else if (recoveryActivities.length >= 2) {
+        // Sessão de recuperação completa
+        const shuffledRecovery = [...recoveryActivities].sort(() => Math.random() - 0.5)
+        const selectedRecovery = shuffledRecovery.slice(0, Math.min(3, shuffledRecovery.length))
+
+        const recoveryNames = selectedRecovery.map((id) => activityOptionsMap[id].label)
+
+        // Calcular duração total dividida entre as atividades
+        const totalDuration = Math.min(45, 15 * selectedRecovery.length)
+        const durationPerActivity = Math.floor(totalDuration / selectedRecovery.length)
+
+        restDayActivitiesList.push({
+          name: `Sessão de Recuperação Completa`,
+          description: `Combinação de atividades de recuperação e mobilidade. Dedique ${durationPerActivity} minutos para cada atividade.`,
+          duration: totalDuration,
+          intensity: "very_light",
+          benefits: [
+            "Recuperação muscular profunda",
+            "Melhora da flexibilidade",
+            "Redução do estresse",
+            "Preparação para próximos treinos",
+          ],
+          notes: `Foque na qualidade de cada movimento e na respiração profunda. Sugestão de sequência: ${recoveryNames.join(" → ")}.`,
+        })
+        createdCombination = true
+      } else if (cardioActivities.length >= 1 && recoveryActivities.length >= 1) {
+        // Combinação cardio + recuperação
+        const randomCardio = cardioActivities[Math.floor(Math.random() * cardioActivities.length)]
+        const randomRecovery = recoveryActivities[Math.floor(Math.random() * recoveryActivities.length)]
+
+        const cardioName = activityOptionsMap[randomCardio].label
+        const recoveryName = activityOptionsMap[randomRecovery].label
+
+        restDayActivitiesList.push({
+          name: `${cardioName} + ${recoveryName}`,
+          description: `Combinação de cardio leve seguido de recuperação ativa.`,
+          duration: 40,
+          intensity: "light",
+          benefits: [
+            "Recuperação ativa",
+            "Melhora da circulação",
+            "Redução da tensão muscular",
+            "Equilíbrio entre atividade e recuperação",
+          ],
+          notes: `Comece com 20-25 minutos de ${cardioName} em intensidade leve, seguido de 15-20 minutos de ${recoveryName}. Ideal para recuperação completa.`,
+        })
+        createdCombination = true
       }
+    }
 
-      // Criar a atividade personalizada
-      const customActivity: RestDayActivity = {
-        name: activityOption.label,
-        description: `${activityOption.description}${distanceText}`,
-        duration,
-        intensity: activityOption.intensityRange.toLowerCase().includes("muito leve") ? "very_light" : "light",
-        benefits: activityOption.benefits,
-        notes: `Mantenha a intensidade ${activityOption.intensityRange.toLowerCase()} para garantir a recuperação adequada. Esta atividade foi personalizada com base nas suas preferências.`,
+    if (!createdCombination) {
+      // Usar uma única atividade, alternando entre as selecionadas
+      const activityIndex = i % selectedActivities.length
+      const activityId = selectedActivities[activityIndex]
+      const preference = userPreferences[activityId]
+      const activityOption = activityOptionsMap[activityId]
+
+      if (activityOption) {
+        // Determinar duração e distância com base nas preferências do usuário
+        const duration =
+          preference.minDuration !== undefined && preference.maxDuration !== undefined
+            ? Math.floor(Math.random() * (preference.maxDuration - preference.minDuration + 1)) + preference.minDuration
+            : activityOption.defaultMinDuration !== undefined && activityOption.defaultMaxDuration !== undefined
+              ? Math.floor(
+                  Math.random() * (activityOption.defaultMaxDuration - activityOption.defaultMinDuration + 1),
+                ) + activityOption.defaultMinDuration
+              : 30
+
+        let distanceText = ""
+        if (
+          activityOption.hasDistance &&
+          preference.minDistance !== undefined &&
+          preference.maxDistance !== undefined
+        ) {
+          const distance = Number(
+            (Math.random() * (preference.maxDistance - preference.minDistance) + preference.minDistance).toFixed(1),
+          )
+          distanceText = ` (${distance} ${activityOption.unit})`
+        }
+
+        // Criar a atividade personalizada
+        const customActivity: RestDayActivity = {
+          name: activityOption.label,
+          description: `${activityOption.description}${distanceText}`,
+          duration,
+          intensity: activityOption.intensityRange.toLowerCase().includes("muito leve") ? "very_light" : "light",
+          benefits: activityOption.benefits,
+          notes: `Mantenha a intensidade ${activityOption.intensityRange.toLowerCase()} para garantir a recuperação adequada. Esta atividade foi personalizada com base nas suas preferências.`,
+        }
+
+        restDayActivitiesList.push(customActivity)
       }
-
-      userSelectedActivities.push(customActivity)
     }
   }
 
-  return userSelectedActivities
+  return restDayActivitiesList
 }
 
 // Função para gerar recomendações de suplementos
