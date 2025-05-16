@@ -112,6 +112,9 @@ export function generateWorkoutPlan(profile: UserProfile): WorkoutPlan {
   // Gerar recomendações de sono mais elaboradas
   const sleepRecs = generateSleepRecommendations(profile)
 
+  // Gerar notas personalizadas para o plano
+  const personalizedNotes = generatePersonalizedNotes(profile, focusArea)
+
   // Criar o plano de treino completo
   const workoutPlan: WorkoutPlan = {
     name: `Plano de ${translatedFocusArea} ${fitnessLevelTranslations[profile.fitnessLevel]} - 9 Semanas`,
@@ -126,10 +129,71 @@ export function generateWorkoutPlan(profile: UserProfile): WorkoutPlan {
     bodyMetrics,
     supplementRecommendations: supplementRecs,
     sleepRecommendations: sleepRecs,
-    notes: `Este plano inclui variação de volume e intensidade ao longo das semanas, com uma semana de deload estrategicamente posicionada para maximizar recuperação e resultados. Ajuste as cargas conforme necessário para manter o nível de desafio apropriado. Não negligencie os dias de descanso - eles são essenciais para sua recuperação e progresso.`,
+    notes: personalizedNotes,
   }
 
   return workoutPlan
+}
+
+// Função para gerar notas personalizadas para o plano
+function generatePersonalizedNotes(profile: UserProfile, focusArea: string): string {
+  let notes = `Este plano inclui variação de volume e intensidade ao longo das semanas, com uma semana de deload estrategicamente posicionada para maximizar recuperação e resultados.`
+
+  // Adicionar notas baseadas no nível de condicionamento
+  if (profile.fitnessLevel === "beginner") {
+    notes += ` Como iniciante, foque em aprender a técnica correta de cada exercício antes de aumentar as cargas.`
+  } else if (profile.fitnessLevel === "intermediate") {
+    notes += ` Com seu nível intermediário, busque progressão gradual nas cargas e intensidade ao longo das semanas.`
+  } else if (profile.fitnessLevel === "advanced") {
+    notes += ` Como atleta avançado, você pode ajustar as cargas e volumes conforme necessário para continuar progredindo.`
+  }
+
+  // Adicionar notas baseadas no objetivo
+  if (profile.fitnessGoals === "weightLoss") {
+    notes += ` Para maximizar a perda de peso, mantenha os intervalos de descanso curtos e considere adicionar cardio leve nos dias de descanso.`
+  } else if (profile.fitnessGoals === "muscleGain") {
+    notes += ` Para ganho de massa, foque na progressão de cargas e garanta uma alimentação adequada com superávit calórico.`
+  } else if (profile.fitnessGoals === "strength") {
+    notes += ` Para ganhos de força, priorize a técnica perfeita e progressão de cargas nos exercícios compostos.`
+  } else if (profile.fitnessGoals === "endurance") {
+    notes += ` Para melhorar a resistência, mantenha os intervalos curtos e o volume alto, aumentando gradualmente a intensidade.`
+  } else if (profile.fitnessGoals === "toning") {
+    notes += ` Para definição muscular, combine este treino com uma alimentação balanceada em déficit calórico moderado.`
+  }
+
+  // Adicionar notas baseadas na área de foco
+  if (focusArea === "fullBody") {
+    notes += ` Seu plano de corpo inteiro permite trabalhar todos os grupos musculares com frequência adequada para recuperação.`
+  } else if (focusArea === "upperBody") {
+    notes += ` Com foco na parte superior, você trabalhará intensamente peito, costas, ombros e braços para desenvolvimento proporcional.`
+  } else if (focusArea === "lowerBody") {
+    notes += ` Seu foco na parte inferior desenvolverá força e resistência nas pernas e glúteos.`
+  } else if (focusArea === "core") {
+    notes += ` O foco no core fortalecerá sua região abdominal, melhorando postura e estabilidade.`
+  } else if (focusArea === "glutes") {
+    notes += ` Com foco nos glúteos, você trabalhará intensamente esta região para desenvolvimento e tonificação.`
+  }
+
+  // Adicionar notas sobre descanso
+  notes += ` Não negligencie os dias de descanso - eles são essenciais para sua recuperação e progresso.`
+
+  // Adicionar notas sobre experiência de treino
+  if (profile.trainingExperience && profile.trainingExperience > 0) {
+    if (profile.trainingExperience < 2) {
+      notes += ` Com sua experiência de treino, foque em consolidar a técnica e criar consistência nos treinos.`
+    } else if (profile.trainingExperience < 5) {
+      notes += ` Aproveite sua experiência para explorar variações avançadas dos exercícios quando se sentir confortável.`
+    } else {
+      notes += ` Com sua vasta experiência, você pode personalizar ainda mais este plano, ajustando exercícios e cargas conforme necessário.`
+    }
+  }
+
+  // Adicionar notas sobre condições de saúde se existirem
+  if (profile.healthConditions && profile.healthConditions.trim() !== "") {
+    notes += ` Considerando suas condições de saúde, sempre respeite os limites do seu corpo e consulte um profissional de saúde se necessário.`
+  }
+
+  return notes
 }
 
 // Função para gerar os treinos de uma semana específica com distribuição equilibrada
@@ -717,11 +781,29 @@ function generateSupplementRecommendations(profile: UserProfile): SupplementReco
   const allSupplements = [...goalSpecificSupplements, ...generalSupplements]
   const uniqueSupplements: SupplementRecommendation[] = []
   const supplementNames = new Set<string>()
+  const supplementPurposes = new Set<string>()
 
   // Filtrar suplementos únicos e que o usuário não está tomando
   allSupplements.forEach((supplement) => {
-    if (!supplementNames.has(supplement.name) && !userSupplements.includes(supplement.name)) {
+    // Verificar se o usuário já está tomando este suplemento
+    if (userSupplements.includes(supplement.name.toLowerCase())) {
+      return
+    }
+
+    // Determinar o propósito principal do suplemento
+    const mainPurpose = getSupplementMainPurpose(supplement)
+
+    // Verificar se já temos um suplemento com o mesmo propósito principal
+    if (mainPurpose && supplementPurposes.has(mainPurpose)) {
+      return
+    }
+
+    // Adicionar o suplemento se não for duplicado
+    if (!supplementNames.has(supplement.name)) {
       supplementNames.add(supplement.name)
+      if (mainPurpose) {
+        supplementPurposes.add(mainPurpose)
+      }
       uniqueSupplements.push(supplement)
     }
   })
@@ -734,6 +816,82 @@ function generateSupplementRecommendations(profile: UserProfile): SupplementReco
   )
 
   return uniqueSupplements
+}
+
+// Função para determinar o objetivo principal de um suplemento
+function getSupplementMainPurpose(supplement: SupplementRecommendation): string {
+  // Palavras-chave para categorizar suplementos
+  const keywords: Record<string, string[]> = {
+    Recuperação: ["recuperação", "recuperação muscular", "reparação", "regeneração"],
+    Energia: ["energia", "desempenho", "resistência", "fadiga"],
+    Força: ["força", "potência", "explosão"],
+    "Massa Muscular": ["massa muscular", "hipertrofia", "síntese proteica", "anabólico"],
+    "Saúde Geral": ["saúde", "imunidade", "bem-estar", "antioxidante"],
+    "Queima de Gordura": ["gordura", "metabolismo", "termogênico", "oxidação"],
+    "Foco Mental": ["foco", "concentração", "mental", "cognitivo"],
+    Hormonal: ["hormônio", "testosterona", "hormonal"],
+    "Anti-inflamatório": ["inflamação", "anti-inflamatório", "articulações"],
+  }
+
+  // Verificar o nome e descrição do suplemento
+  const nameAndDesc = (supplement.name + " " + supplement.description).toLowerCase()
+
+  // Verificar os benefícios
+  const allBenefits = supplement.benefits.join(" ").toLowerCase()
+
+  // Pontuação para cada categoria
+  const scores: Record<string, number> = {}
+
+  // Inicializar pontuações
+  Object.keys(keywords).forEach((category) => {
+    scores[category] = 0
+  })
+
+  // Calcular pontuações
+  Object.entries(keywords).forEach(([category, words]) => {
+    words.forEach((word) => {
+      if (nameAndDesc.includes(word.toLowerCase())) {
+        scores[category] += 2
+      }
+      if (allBenefits.includes(word.toLowerCase())) {
+        scores[category] += 1
+      }
+    })
+  })
+
+  // Casos especiais baseados no nome
+  if (supplement.name.toLowerCase().includes("proteína") || supplement.name.toLowerCase().includes("whey")) {
+    scores["Massa Muscular"] += 5
+    scores["Recuperação"] += 3
+  }
+  if (supplement.name.toLowerCase().includes("creatina")) {
+    scores["Força"] += 5
+    scores["Massa Muscular"] += 3
+  }
+  if (supplement.name.toLowerCase().includes("cafeína")) {
+    scores["Energia"] += 5
+    scores["Foco Mental"] += 3
+  }
+  if (supplement.name.toLowerCase().includes("ômega") || supplement.name.toLowerCase().includes("omega")) {
+    scores["Anti-inflamatório"] += 5
+    scores["Saúde Geral"] += 3
+  }
+  if (supplement.name.toLowerCase().includes("vitamina") || supplement.name.toLowerCase().includes("mineral")) {
+    scores["Saúde Geral"] += 5
+  }
+
+  // Encontrar a categoria com maior pontuação
+  let maxScore = 0
+  let mainPurpose = ""
+
+  Object.entries(scores).forEach(([category, score]) => {
+    if (score > maxScore) {
+      maxScore = score
+      mainPurpose = category
+    }
+  })
+
+  return mainPurpose || "Suplementação"
 }
 
 // Função para gerar recomendações de sono mais elaboradas
@@ -829,12 +987,6 @@ function generateSleepRecommendations(profile: UserProfile): string[] {
 }
 
 // Função para obter o nome do treino
-function getWorkoutName(workoutType: string, day: number, weekNumber: number): string {
-  const typeTranslation = getWorkoutTypeTranslation(workoutType)
-  return `Treino de ${typeTranslation} ${day} - Semana ${weekNumber}`
-}
-
-// Função para traduzir o tipo de treino
 function getWorkoutTypeTranslation(workoutType: string): string {
   const translations: Record<string, string> = {
     fullBody: "Corpo Inteiro",

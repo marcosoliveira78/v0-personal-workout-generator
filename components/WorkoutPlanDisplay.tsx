@@ -22,6 +22,9 @@ export default function WorkoutPlanDisplay({ workoutPlan }: WorkoutPlanDisplayPr
   // Obter a semana atual
   const currentWeek = workoutPlan.weeks.find((week) => week.weekNumber === activeWeek) || workoutPlan.weeks[0]
 
+  // Criar um array com todos os dias da semana (treinos e descansos)
+  const allDays = createWeekSchedule(currentWeek.workouts, currentWeek.restDayActivities)
+
   return (
     <div className="space-y-6">
       <div>
@@ -92,44 +95,19 @@ export default function WorkoutPlanDisplay({ workoutPlan }: WorkoutPlanDisplayPr
             <CardContent>
               <Tabs value={activeDay} onValueChange={setActiveDay}>
                 <TabsList className="grid grid-cols-7 mb-4">
-                  {currentWeek.workouts.map((workout, index) => (
+                  {allDays.map((day, index) => (
                     <TabsTrigger key={`day${index + 1}`} value={`day${index + 1}`}>
                       Dia {index + 1}
                     </TabsTrigger>
                   ))}
-                  {Array.from({ length: currentWeek.restDays }).map((_, index) => (
-                    <TabsTrigger key={`rest${index + 1}`} value={`rest${index + 1}`}>
-                      Descanso
-                    </TabsTrigger>
-                  ))}
                 </TabsList>
 
-                {currentWeek.workouts.map((workout, index) => (
+                {allDays.map((day, index) => (
                   <TabsContent key={`day${index + 1}`} value={`day${index + 1}`}>
-                    <WorkoutDayCard workout={workout} day={index + 1} />
-                  </TabsContent>
-                ))}
-
-                {Array.from({ length: currentWeek.restDays }).map((_, index) => (
-                  <TabsContent key={`rest${index + 1}`} value={`rest${index + 1}`}>
-                    {currentWeek.restDayActivities[index] ? (
-                      <RestDayCard
-                        activity={currentWeek.restDayActivities[index]}
-                        day={currentWeek.workouts.length + index + 1}
-                      />
+                    {day.type === "workout" ? (
+                      <WorkoutDayCard workout={day.workout} dayNumber={index + 1} />
                     ) : (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Dia {currentWeek.workouts.length + index + 1}: Descanso</CardTitle>
-                          <CardDescription>Dia de recuperação completa</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <p>
-                            Hoje é um dia de descanso completo. Foque em dormir bem, manter-se hidratado e permitir que
-                            seu corpo se recupere dos treinos anteriores.
-                          </p>
-                        </CardContent>
-                      </Card>
+                      <RestDayCard activity={day.activity} dayNumber={index + 1} />
                     )}
                   </TabsContent>
                 ))}
@@ -393,13 +371,61 @@ export default function WorkoutPlanDisplay({ workoutPlan }: WorkoutPlanDisplayPr
   )
 }
 
-function WorkoutDayCard({ workout, day }: { workout: Workout; day: number }) {
+// Função para criar um cronograma semanal com treinos e descansos intercalados
+function createWeekSchedule(workouts: Workout[], restActivities: RestDayActivity[]) {
+  // Criar um array para todos os 7 dias da semana
+  const weekSchedule = Array(7)
+    .fill(null)
+    .map((_, i) => ({
+      dayIndex: i,
+      type: "rest" as "workout" | "rest",
+      workout: null as Workout | null,
+      activity: null as RestDayActivity | null,
+    }))
+
+  // Preencher os dias de treino
+  workouts.forEach((workout) => {
+    if (workout.dayOfWeek !== undefined && workout.dayOfWeek >= 0 && workout.dayOfWeek < 7) {
+      weekSchedule[workout.dayOfWeek] = {
+        dayIndex: workout.dayOfWeek,
+        type: "workout",
+        workout: workout,
+        activity: null,
+      }
+    }
+  })
+
+  // Preencher os dias de descanso
+  let restIndex = 0
+  weekSchedule.forEach((day, index) => {
+    if (day.type === "rest" && restIndex < restActivities.length) {
+      weekSchedule[index] = {
+        dayIndex: index,
+        type: "rest",
+        workout: null,
+        activity: restActivities[restIndex],
+      }
+      restIndex++
+    }
+  })
+
+  return weekSchedule
+}
+
+function WorkoutDayCard({ workout, dayNumber }: { workout: Workout; dayNumber: number }) {
+  // Obter o nome do dia da semana
+  const dayNames = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+  const dayName = workout.dayOfWeek !== undefined ? dayNames[workout.dayOfWeek] : ""
+
   return (
     <Card>
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>{workout.name}</CardTitle>
+            <CardTitle className="flex flex-col">
+              <span>Dia {dayNumber}</span>
+              <span className="text-base font-normal text-muted-foreground">{dayName}</span>
+            </CardTitle>
             <CardDescription>{workout.description}</CardDescription>
           </div>
           <div className="flex gap-2">
@@ -459,14 +485,59 @@ function WorkoutDayCard({ workout, day }: { workout: Workout; day: number }) {
   )
 }
 
-function RestDayCard({ activity, day }: { activity: RestDayActivity; day: number }) {
+function RestDayCard({ activity, dayNumber }: { activity: RestDayActivity | null; dayNumber: number }) {
+  // Obter o nome do dia da semana
+  const dayNames = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+  const dayName = dayNames[(dayNumber - 1) % 7]
+
+  if (!activity) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex flex-col">
+            <span>Dia {dayNumber}</span>
+            <span className="text-base font-normal text-muted-foreground">{dayName}</span>
+          </CardTitle>
+          <CardDescription>Dia de descanso completo</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p>
+            Hoje é um dia de descanso completo. Foque em dormir bem, manter-se hidratado e permitir que seu corpo se
+            recupere dos treinos anteriores.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // Verificar se a atividade é uma combinação
+  const isCombination =
+    activity.name.includes("+") || activity.name.includes("Combo") || activity.name.includes("Sessão")
+
+  // Extrair as atividades individuais da descrição
+  let individualActivities: string[] = []
+  if (isCombination) {
+    // Tentar extrair atividades da descrição ou notas
+    const activitiesMatch =
+      activity.notes?.match(/Sugestão(?:\s+de\s+sequência)?:\s+(.*?)\./) ||
+      activity.description.match(/Faça.*?cada\s+atividade/) ||
+      activity.name.match(/Combo:\s+(.*)/)
+
+    if (activitiesMatch && activitiesMatch[1]) {
+      individualActivities = activitiesMatch[1].split(/[→+]/).map((a) => a.trim())
+    } else if (activity.name.includes("+")) {
+      individualActivities = activity.name.split("+").map((a) => a.trim())
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>
-              Dia {day}: {activity.name}
+            <CardTitle className="flex flex-col">
+              <span>Dia {dayNumber}</span>
+              <span className="text-base font-normal text-muted-foreground">{dayName}</span>
             </CardTitle>
             <CardDescription>Atividade de recuperação ativa</CardDescription>
           </div>
@@ -475,11 +546,32 @@ function RestDayCard({ activity, day }: { activity: RestDayActivity; day: number
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          <p>{activity.description}</p>
+          <div>
+            <h3 className="text-lg font-medium">{activity.name}</h3>
+            <p className="mt-2">{activity.description}</p>
+          </div>
 
           <div>
             <p className="font-medium">Duração recomendada: {activity.duration} minutos</p>
           </div>
+
+          {isCombination && individualActivities.length > 0 && (
+            <div className="mt-4">
+              <h3 className="font-medium mb-2">Detalhamento das Atividades</h3>
+              <div className="space-y-4">
+                {individualActivities.map((activityName, idx) => (
+                  <div key={idx} className="p-3 bg-muted/50 rounded-md">
+                    <h4 className="font-medium">{activityName}</h4>
+                    <p className="mt-1 text-sm">{getActivityDescription(activityName)}</p>
+                    <div className="mt-2 text-sm">
+                      <span className="font-medium">Dicas: </span>
+                      {getActivityTips(activityName)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <h3 className="font-medium mb-2">Benefícios</h3>
@@ -502,12 +594,92 @@ function RestDayCard({ activity, day }: { activity: RestDayActivity; day: number
   )
 }
 
+// Função para obter descrição detalhada de uma atividade
+function getActivityDescription(activityName: string): string {
+  const activityDescriptions: Record<string, string> = {
+    Caminhada:
+      "Caminhada em ritmo moderado que ajuda na recuperação ativa, melhora a circulação sanguínea e promove o relaxamento mental. Mantenha um ritmo onde você consiga conversar confortavelmente.",
+    "Caminhada na Natureza":
+      "Caminhada em ambiente natural como parque, floresta ou praia. Além dos benefícios físicos, proporciona conexão com a natureza e redução do estresse.",
+    Ciclismo:
+      "Pedalada em ritmo leve que trabalha os membros inferiores sem impacto nas articulações. Mantenha uma cadência alta com resistência baixa.",
+    Natação:
+      "Atividade de baixíssimo impacto que trabalha todo o corpo enquanto relaxa os músculos. Alterne entre diferentes estilos em ritmo tranquilo.",
+    Yoga: "Prática que combina posturas físicas, técnicas de respiração e meditação. Foque em posturas restaurativas que promovem flexibilidade e relaxamento.",
+    Alongamento:
+      "Série de exercícios que aumentam a flexibilidade muscular e amplitude de movimento. Mantenha cada alongamento por 20-30 segundos, respirando profundamente.",
+    "Mobilidade Articular":
+      "Exercícios específicos para melhorar a função e amplitude de movimento das articulações. Realize movimentos circulares e controlados em cada articulação.",
+    "Foam Rolling":
+      "Auto-massagem com rolo de espuma para liberar tensão muscular e fáscia. Passe o rolo lentamente sobre cada grupo muscular, pausando em áreas tensas.",
+    Meditação:
+      "Prática de atenção plena que reduz o estresse e promove o equilíbrio mental. Foque na respiração e na liberação de tensões.",
+    "Elíptico Leve":
+      "Exercício cardiovascular de baixo impacto que simula caminhada ou corrida sem estresse nas articulações. Mantenha resistência baixa e ritmo confortável.",
+  }
+
+  // Buscar correspondência parcial se não encontrar exata
+  const exactMatch = activityDescriptions[activityName]
+  if (exactMatch) return exactMatch
+
+  for (const [key, description] of Object.entries(activityDescriptions)) {
+    if (activityName.includes(key)) {
+      return description
+    }
+  }
+
+  return "Atividade de recuperação que ajuda a melhorar a circulação sanguínea e promover o relaxamento muscular."
+}
+
+// Função para obter dicas específicas para uma atividade
+function getActivityTips(activityName: string): string {
+  const activityTips: Record<string, string> = {
+    Caminhada:
+      "Use calçados confortáveis, mantenha boa postura e hidrate-se adequadamente. Respire profundamente e aproveite o momento.",
+    "Caminhada na Natureza":
+      "Escolha trilhas adequadas ao seu nível, leve água, use protetor solar e observe a natureza ao seu redor para maximizar os benefícios mentais.",
+    Ciclismo:
+      "Ajuste corretamente a altura do selim, mantenha os joelhos levemente flexionados no ponto mais baixo do pedal e evite subidas íngremes.",
+    Natação:
+      "Foque na técnica e não na velocidade. Respire de forma rítmica e use equipamentos como pranchas se necessário para facilitar o movimento.",
+    Yoga: "Não force além do seu limite, respeite as limitações do seu corpo e foque na respiração durante as posturas. Use props como blocos se necessário.",
+    Alongamento:
+      "Nunca force até sentir dor, apenas um leve desconforto. Respire profundamente durante os alongamentos e evite movimentos bruscos.",
+    "Mobilidade Articular":
+      "Realize os movimentos de forma lenta e controlada, aumentando gradualmente a amplitude. Preste atenção a qualquer desconforto anormal.",
+    "Foam Rolling":
+      "Aplique pressão moderada, evitando áreas ósseas e articulações. Passe 30-60 segundos em cada grupo muscular, respirando profundamente.",
+    Meditação:
+      "Encontre um local tranquilo, mantenha uma postura confortável e foque na respiração. Se a mente divagar, gentilmente traga o foco de volta.",
+    "Elíptico Leve":
+      "Mantenha postura ereta, segure levemente nos apoios e distribua o peso igualmente entre os pés. Ajuste a resistência para manter um ritmo confortável.",
+  }
+
+  // Buscar correspondência parcial se não encontrar exata
+  const exactMatch = activityTips[activityName]
+  if (exactMatch) return exactMatch
+
+  for (const [key, tips] of Object.entries(activityTips)) {
+    if (activityName.includes(key)) {
+      return tips
+    }
+  }
+
+  return "Mantenha a intensidade baixa, foque na qualidade do movimento e na respiração controlada. Esta é uma atividade de recuperação, não um treino intenso."
+}
+
 function SupplementCard({ supplement }: { supplement: SupplementRecommendation }) {
+  // Determinar o objetivo principal do suplemento
+  const mainPurpose = getSupplementMainPurpose(supplement)
+
   return (
     <div className="border rounded-lg p-4">
       <div className="flex justify-between items-start">
         <h3 className="font-medium text-lg">{supplement.name}</h3>
-        <Badge variant={getPriorityVariant(supplement.priority)}>{translatePriority(supplement.priority)}</Badge>
+        <div className="flex gap-2">
+          <Badge variant={getPriorityVariant(supplement.priority)}>{translatePriority(supplement.priority)}</Badge>
+          {mainPurpose && <Badge variant="secondary">{mainPurpose}</Badge>}
+        </div>
       </div>
       <p className="mt-2">{supplement.description}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -532,6 +704,82 @@ function SupplementCard({ supplement }: { supplement: SupplementRecommendation }
       </div>
     </div>
   )
+}
+
+// Função para determinar o objetivo principal de um suplemento
+function getSupplementMainPurpose(supplement: SupplementRecommendation): string {
+  // Palavras-chave para categorizar suplementos
+  const keywords: Record<string, string[]> = {
+    Recuperação: ["recuperação", "recuperação muscular", "reparação", "regeneração"],
+    Energia: ["energia", "desempenho", "resistência", "fadiga"],
+    Força: ["força", "potência", "explosão"],
+    "Massa Muscular": ["massa muscular", "hipertrofia", "síntese proteica", "anabólico"],
+    "Saúde Geral": ["saúde", "imunidade", "bem-estar", "antioxidante"],
+    "Queima de Gordura": ["gordura", "metabolismo", "termogênico", "oxidação"],
+    "Foco Mental": ["foco", "concentração", "mental", "cognitivo"],
+    Hormonal: ["hormônio", "testosterona", "hormonal"],
+    "Anti-inflamatório": ["inflamação", "anti-inflamatório", "articulações"],
+  }
+
+  // Verificar o nome e descrição do suplemento
+  const nameAndDesc = (supplement.name + " " + supplement.description).toLowerCase()
+
+  // Verificar os benefícios
+  const allBenefits = supplement.benefits.join(" ").toLowerCase()
+
+  // Pontuação para cada categoria
+  const scores: Record<string, number> = {}
+
+  // Inicializar pontuações
+  Object.keys(keywords).forEach((category) => {
+    scores[category] = 0
+  })
+
+  // Calcular pontuações
+  Object.entries(keywords).forEach(([category, words]) => {
+    words.forEach((word) => {
+      if (nameAndDesc.includes(word.toLowerCase())) {
+        scores[category] += 2
+      }
+      if (allBenefits.includes(word.toLowerCase())) {
+        scores[category] += 1
+      }
+    })
+  })
+
+  // Casos especiais baseados no nome
+  if (supplement.name.toLowerCase().includes("proteína") || supplement.name.toLowerCase().includes("whey")) {
+    scores["Massa Muscular"] += 5
+    scores["Recuperação"] += 3
+  }
+  if (supplement.name.toLowerCase().includes("creatina")) {
+    scores["Força"] += 5
+    scores["Massa Muscular"] += 3
+  }
+  if (supplement.name.toLowerCase().includes("cafeína")) {
+    scores["Energia"] += 5
+    scores["Foco Mental"] += 3
+  }
+  if (supplement.name.toLowerCase().includes("ômega") || supplement.name.toLowerCase().includes("omega")) {
+    scores["Anti-inflamatório"] += 5
+    scores["Saúde Geral"] += 3
+  }
+  if (supplement.name.toLowerCase().includes("vitamina") || supplement.name.toLowerCase().includes("mineral")) {
+    scores["Saúde Geral"] += 5
+  }
+
+  // Encontrar a categoria com maior pontuação
+  let maxScore = 0
+  let mainPurpose = ""
+
+  Object.entries(scores).forEach(([category, score]) => {
+    if (score > maxScore) {
+      maxScore = score
+      mainPurpose = category
+    }
+  })
+
+  return mainPurpose || "Suplementação"
 }
 
 function ExerciseItem({ exercise, index }: { exercise: Exercise; index: number }) {
