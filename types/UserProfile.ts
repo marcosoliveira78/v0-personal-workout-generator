@@ -16,6 +16,7 @@ export interface UserProfile {
   fitnessGoals: "weightLoss" | "muscleGain" | "endurance" | "strength" | "toning"
   workoutsPerWeek: number
   timePerWorkout: number
+  exercisesPerWorkout?: number // Número de exercícios por treino
   focusAreas: "fullBody" | "upperBody" | "lowerBody" | "core" | "glutes"
   healthConditions?: string
   trainingExperience?: number // Anos de experiência com treinos
@@ -24,6 +25,14 @@ export interface UserProfile {
   sleepWeekend: number // Horas de sono no final de semana
   supplements: string[] // Suplementos utilizados atualmente
   restActivities: Record<string, RestActivityPreference> // Preferências de atividades para dias de descanso
+
+  // Medidas corporais adicionais
+  waistCircumference?: number // Circunferência abdominal (cm)
+  hipCircumference?: number // Circunferência dos quadris (cm)
+  chestCircumference?: number // Circunferência do peito/tórax (cm)
+  armCircumference?: number // Circunferência dos braços (cm)
+  thighCircumference?: number // Circunferência das coxas (cm)
+  calfCircumference?: number // Circunferência das panturrilhas (cm)
 }
 
 export interface BodyMetrics {
@@ -32,6 +41,7 @@ export interface BodyMetrics {
   basalMetabolicRate: number
   dailyCalorieNeeds: number
   bodyFatPercentageEstimate: number
+  waistToHipRatio?: number // Relação cintura-quadril
 }
 
 export interface SupplementRecommendation {

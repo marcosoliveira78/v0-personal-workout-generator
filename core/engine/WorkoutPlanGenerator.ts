@@ -1,12 +1,18 @@
 import type { UserProfile } from "@/types/UserProfile"
-import type { WorkoutPlan, WorkoutWeek, Workout, Exercise, RestDayActivity } from "@/types/Workout"
+import type {
+  WorkoutPlan,
+  WorkoutWeek,
+  Workout,
+  Exercise,
+  RestDayActivity,
+  SupplementRecommendation,
+  RestActivityOption,
+} from "@/types/Workout"
 import { exerciseDatabase, deloadExercises } from "@/data/exerciseDatabase"
 import { restDayActivities } from "@/data/restDayActivities"
 import { supplementRecommendations, generalSupplements } from "@/data/supplementRecommendations"
 import { calculateBodyMetrics } from "@/utils/bodyMetrics"
 import { restActivityOptions } from "@/data/restActivityOptions"
-import type { RestActivityOption } from "@/types/RestActivityOption"
-import type { SupplementRecommendation } from "@/types/Supplement"
 
 // Tradução das áreas de foco
 const focusAreaTranslations: Record<string, string> = {
@@ -82,7 +88,7 @@ export function generateWorkoutPlan(profile: UserProfile): WorkoutPlan {
       }
     }
 
-    // Criar treinos para a semana
+    // Criar treinos para a semana com distribuição equilibrada
     const workouts = generateWorkoutsForWeek(profile, daysPerWeek, weekNumber, isDeloadWeek, weekFocus)
 
     // Selecionar atividades para dias de descanso
@@ -100,10 +106,10 @@ export function generateWorkoutPlan(profile: UserProfile): WorkoutPlan {
     })
   }
 
-  // Gerar recomendações de suplementos com base no objetivo
+  // Gerar recomendações de suplementos com base no objetivo (sem duplicatas)
   const supplementRecs = generateSupplementRecommendations(profile)
 
-  // Gerar recomendações de sono
+  // Gerar recomendações de sono mais elaboradas
   const sleepRecs = generateSleepRecommendations(profile)
 
   // Criar o plano de treino completo
@@ -126,7 +132,7 @@ export function generateWorkoutPlan(profile: UserProfile): WorkoutPlan {
   return workoutPlan
 }
 
-// Função para gerar os treinos de uma semana específica
+// Função para gerar os treinos de uma semana específica com distribuição equilibrada
 function generateWorkoutsForWeek(
   profile: UserProfile,
   daysPerWeek: number,
@@ -136,6 +142,7 @@ function generateWorkoutsForWeek(
 ): Workout[] {
   const workouts: Workout[] = []
   const focusArea = profile.focusAreas
+  const exercisesPerWorkout = profile.exercisesPerWorkout || 5 // Usar valor padrão se não especificado
 
   // Obter exercícios para a área de foco
   const exercisePool = isDeloadWeek ? deloadExercises : exerciseDatabase
@@ -152,59 +159,93 @@ function generateWorkoutsForWeek(
     }
   })
 
-  // Determinar a divisão de treino com base nos dias por semana e área de foco
-  const splitType = determineSplitType(daysPerWeek, focusArea)
+  // Determinar a distribuição de treinos com base na área de foco
+  let workoutTypes: string[] = []
+
+  // Distribuir os dias de treino de forma equilibrada na semana
+  // Criar um array com os dias da semana (0 = segunda, 1 = terça, etc.)
+  const daysOfWeek = [0, 1, 2, 3, 4, 5, 6] // seg, ter, qua, qui, sex, sab, dom
+
+  // Selecionar os dias de treino de forma equilibrada
+  let trainingDays: number[] = []
+
+  if (daysPerWeek === 1) {
+    trainingDays = [0] // Segunda-feira
+  } else if (daysPerWeek === 2) {
+    trainingDays = [0, 3] // Segunda e quinta
+  } else if (daysPerWeek === 3) {
+    trainingDays = [0, 2, 4] // Segunda, quarta e sexta
+  } else if (daysPerWeek === 4) {
+    trainingDays = [0, 1, 3, 4] // Segunda, terça, quinta e sexta
+  } else if (daysPerWeek === 5) {
+    trainingDays = [0, 1, 2, 3, 4] // Segunda a sexta
+  } else if (daysPerWeek === 6) {
+    trainingDays = [0, 1, 2, 3, 4, 5] // Segunda a sábado
+  } else if (daysPerWeek === 7) {
+    trainingDays = [0, 1, 2, 3, 4, 5, 6] // Todos os dias
+  }
+
+  // Determinar os tipos de treino com base na área de foco
+  if (focusArea === "fullBody") {
+    // Para treino de corpo inteiro, distribuir exercícios para todo o corpo
+    workoutTypes = Array(daysPerWeek).fill("fullBody")
+  } else if (focusArea === "glutes") {
+    // Para foco em glúteos: 60% glúteos, 20% parte inferior, 20% parte superior
+    const glutesDays = Math.ceil(daysPerWeek * 0.6)
+    const lowerDays = Math.ceil(daysPerWeek * 0.2)
+    const upperDays = daysPerWeek - glutesDays - lowerDays
+
+    workoutTypes = [
+      ...Array(glutesDays).fill("glutes"),
+      ...Array(lowerDays).fill("lowerBody"),
+      ...Array(upperDays).fill("upperBody"),
+    ]
+
+    // Distribuir os tipos de treino de forma alternada
+    workoutTypes = distributeWorkoutTypes(workoutTypes)
+  } else {
+    // Para outras áreas específicas: pelo menos 60% do tempo dedicado à área de foco
+    const focusDays = Math.ceil(daysPerWeek * 0.6)
+    const remainingDays = daysPerWeek - focusDays
+
+    // Distribuir os dias restantes entre outras áreas
+    const otherTypes = ["fullBody", "upperBody", "lowerBody", "core"].filter((type) => type !== focusArea)
+
+    workoutTypes = [
+      ...Array(focusDays).fill(focusArea),
+      ...Array(remainingDays)
+        .fill(null)
+        .map((_, i) => otherTypes[i % otherTypes.length]),
+    ]
+
+    // Distribuir os tipos de treino de forma alternada
+    workoutTypes = distributeWorkoutTypes(workoutTypes)
+  }
 
   // Criar treinos para cada dia da semana
-  for (let day = 1; day <= daysPerWeek; day++) {
-    let workoutType = ""
+  for (let i = 0; i < daysPerWeek; i++) {
+    const workoutType = workoutTypes[i]
     let targetMuscles: string[] = []
 
-    // Determinar o tipo de treino com base na divisão e área de foco
-    if (focusArea !== "fullBody" && daysPerWeek >= 3) {
-      // Para áreas específicas, maximizar o trabalho naquela área
-      if (focusArea === "upperBody") {
-        workoutType = day % 2 === 0 ? "chest_shoulders" : "back_arms"
-        targetMuscles =
-          workoutType === "chest_shoulders" ? ["peito", "ombros", "tríceps"] : ["costas", "bíceps", "antebraços"]
-      } else if (focusArea === "lowerBody") {
-        workoutType = day % 2 === 0 ? "quads_calves" : "hamstrings_glutes"
-        targetMuscles = workoutType === "quads_calves" ? ["quadríceps", "panturrilhas"] : ["isquiotibiais", "glúteos"]
-      } else if (focusArea === "core") {
-        workoutType = "core"
-        targetMuscles = ["abdominais", "oblíquos", "lombar", "estabilizadores"]
-      } else if (focusArea === "glutes") {
-        workoutType = "glutes"
-        targetMuscles = ["glúteos", "isquiotibiais", "quadríceps"]
-      }
-    } else {
-      // Para treino de corpo inteiro ou poucos dias por semana
-      if (splitType === "fullBody") {
-        workoutType = "fullBody"
+    // Determinar os músculos alvo com base no tipo de treino
+    switch (workoutType) {
+      case "fullBody":
         targetMuscles = ["corpo inteiro"]
-      } else if (splitType === "upperLower") {
-        workoutType = day % 2 === 1 ? "upperBody" : "lowerBody"
-        targetMuscles =
-          workoutType === "upperBody"
-            ? ["peito", "costas", "ombros", "braços"]
-            : ["quadríceps", "isquiotibiais", "glúteos", "panturrilhas"]
-      } else {
-        // push-pull-legs
-        switch (day % 3) {
-          case 1:
-            workoutType = "push"
-            targetMuscles = ["peito", "ombros", "tríceps"]
-            break
-          case 2:
-            workoutType = "pull"
-            targetMuscles = ["costas", "bíceps", "antebraços"]
-            break
-          case 0:
-            workoutType = "legs"
-            targetMuscles = ["quadríceps", "isquiotibiais", "glúteos", "panturrilhas"]
-            break
-        }
-      }
+        break
+      case "upperBody":
+        targetMuscles = ["peito", "costas", "ombros", "braços"]
+        break
+      case "lowerBody":
+        targetMuscles = ["quadríceps", "isquiotibiais", "glúteos", "panturrilhas"]
+        break
+      case "core":
+        targetMuscles = ["abdominais", "oblíquos", "lombar", "estabilizadores"]
+        break
+      case "glutes":
+        targetMuscles = ["glúteos", "isquiotibiais", "quadríceps"]
+        break
+      default:
+        targetMuscles = ["corpo inteiro"]
     }
 
     // Selecionar exercícios para o treino
@@ -213,20 +254,25 @@ function generateWorkoutsForWeek(
     // Embaralhar exercícios para obter uma seleção aleatória
     const shuffledExercises = [...filteredExercises].sort(() => Math.random() - 0.5)
 
-    // Selecionar número de exercícios com base no tipo de treino e se é semana de deload
-    let numExercises = isDeloadWeek ? 3 : 5
+    // Selecionar número de exercícios com base na preferência do usuário
+    const numExercises = isDeloadWeek ? Math.max(3, exercisesPerWorkout - 2) : exercisesPerWorkout
 
-    // Para ganho de massa, aumentar o número de exercícios na área de foco
-    if (profile.fitnessGoals === "muscleGain" && !isDeloadWeek) {
-      numExercises += 2 // Adicionar mais exercícios para hipertrofia
-    }
+    // Garantir que temos exercícios suficientes
+    if (shuffledExercises.length < numExercises) {
+      // Se não tivermos exercícios suficientes na área de foco, adicionar de outras áreas
+      const otherExercises = Object.values(exercisePool)
+        .flat()
+        .filter((ex) => !shuffledExercises.includes(ex))
+        .sort(() => Math.random() - 0.5)
 
-    if (workoutType === "fullBody") {
-      numExercises = isDeloadWeek ? 4 : 6
+      shuffledExercises.push(...otherExercises)
     }
 
     // Selecionar exercícios
     selectedExercises = shuffledExercises.slice(0, numExercises)
+
+    // Calcular tempo por exercício com base no tempo total do treino
+    const timePerExercise = Math.floor(profile.timePerWorkout / numExercises)
 
     // Ajustar séries e repetições com base no foco da semana e objetivos
     selectedExercises.forEach((exercise, index) => {
@@ -317,13 +363,19 @@ function generateWorkoutsForWeek(
       selectedExercises[index] = exerciseCopy
     })
 
+    // Determinar o dia da semana para este treino
+    const dayOfWeek = trainingDays[i]
+    const dayNames = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+    const dayName = dayNames[dayOfWeek]
+
     // Criar o treino
     const workout: Workout = {
-      name: getWorkoutName(workoutType, day, weekNumber),
+      name: `${dayName}: ${getWorkoutTypeTranslation(workoutType)}`,
       description: `Treino de ${getWorkoutTypeTranslation(workoutType)} - Semana ${weekNumber} (${weekFocus})`,
       type: profile.fitnessGoals === "endurance" ? "cardio" : "strength",
       targetMuscleGroups: targetMuscles,
       estimatedDuration: profile.timePerWorkout,
+      timePerExercise: timePerExercise,
       intensity: isDeloadWeek
         ? "deload"
         : weekFocus === "Intensidade"
@@ -345,26 +397,69 @@ function generateWorkoutsForWeek(
       notes: isDeloadWeek
         ? "Semana de deload: foco em recuperação, use cargas mais leves e priorize a técnica."
         : `Foco da semana: ${weekFocus}. ${getWorkoutNotes(weekFocus, profile.fitnessGoals)}`,
+      dayOfWeek: dayOfWeek, // Armazenar o dia da semana (0-6)
     }
 
     workouts.push(workout)
   }
 
+  // Ordenar os treinos pelo dia da semana
+  workouts.sort((a, b) => (a.dayOfWeek || 0) - (b.dayOfWeek || 0))
+
   return workouts
 }
 
-// Função para determinar o tipo de divisão de treino
-function determineSplitType(daysPerWeek: number, focusArea: string): string {
-  if (focusArea !== "fullBody" && daysPerWeek >= 3) {
-    // Para áreas específicas, usar uma divisão que maximize o trabalho naquela área
-    return focusArea
-  } else if (daysPerWeek <= 3) {
-    return "fullBody" // Treino de corpo inteiro para 1-3 dias por semana
-  } else if (daysPerWeek === 4) {
-    return "upperLower" // Divisão superior/inferior para 4 dias por semana
-  } else {
-    return "push-pull-legs" // Divisão PPL para 5-6 dias por semana
+// Função para distribuir os tipos de treino de forma alternada
+function distributeWorkoutTypes(types: string[]): string[] {
+  const result: string[] = []
+  const typeCounts: Record<string, number> = {}
+
+  // Inicializar contadores para cada tipo
+  types.forEach((type) => {
+    if (!typeCounts[type]) typeCounts[type] = 0
+    typeCounts[type]++
+  })
+
+  // Distribuir os tipos de forma alternada
+  while (Object.values(typeCounts).some((count) => count > 0)) {
+    // Encontrar o próximo tipo com contagem > 0 que não seja igual ao último adicionado
+    const lastType = result.length > 0 ? result[result.length - 1] : null
+
+    let nextType = null
+    for (const type in typeCounts) {
+      if (typeCounts[type] > 0 && type !== lastType) {
+        nextType = type
+        break
+      }
+    }
+
+    // Se não encontrou um tipo diferente, use qualquer um com contagem > 0
+    if (!nextType) {
+      nextType = Object.keys(typeCounts).find((type) => typeCounts[type] > 0) || types[0]
+    }
+
+    // Adicionar o tipo e decrementar sua contagem
+    result.push(nextType)
+    typeCounts[nextType]--
   }
+
+  return result
+}
+
+// Função para verificar se duas atividades são similares
+function areSimilarActivities(activity1: string, activity2: string): boolean {
+  const similarGroups = [
+    ["walking", "hiking"], // Caminhadas são similares
+    ["yoga", "stretching", "mobility"], // Atividades de flexibilidade são similares
+    ["cycling", "light_elliptical"], // Atividades de cardio leve são similares
+  ]
+
+  for (const group of similarGroups) {
+    if (group.includes(activity1) && group.includes(activity2)) {
+      return true
+    }
+  }
+  return false
 }
 
 // Função para selecionar atividades para dias de descanso
@@ -536,8 +631,39 @@ function selectRestDayActivities(profile: UserProfile, restDays: number, isDeloa
       // Usar uma única atividade, alternando entre as selecionadas
       const activityIndex = i % selectedActivities.length
       const activityId = selectedActivities[activityIndex]
-      const preference = userPreferences[activityId]
-      const activityOption = activityOptionsMap[activityId]
+
+      // Verificar se já usamos uma atividade similar nos dias anteriores
+      const isActivitySimilarToPrevious = restDayActivitiesList.some((prevActivity, idx) => {
+        // Só verificar os últimos 2 dias para permitir repetição após alguns dias
+        if (i - idx <= 2) {
+          const prevActivityId = selectedActivities.find(
+            (id) => activityOptionsMap[id] && activityOptionsMap[id].label === prevActivity.name,
+          )
+          return prevActivityId && areSimilarActivities(activityId, prevActivityId)
+        }
+        return false
+      })
+
+      // Se for similar, tentar encontrar outra atividade
+      let finalActivityId = activityId
+      if (isActivitySimilarToPrevious && selectedActivities.length > 1) {
+        const alternativeActivities = selectedActivities.filter(
+          (id) =>
+            !restDayActivitiesList.some((prevActivity) => {
+              const prevActivityId = selectedActivities.find(
+                (aid) => activityOptionsMap[aid] && activityOptionsMap[aid].label === prevActivity.name,
+              )
+              return prevActivityId && areSimilarActivities(id, prevActivityId)
+            }),
+        )
+
+        if (alternativeActivities.length > 0) {
+          finalActivityId = alternativeActivities[Math.floor(Math.random() * alternativeActivities.length)]
+        }
+      }
+
+      const preference = userPreferences[finalActivityId]
+      const activityOption = activityOptionsMap[finalActivityId]
 
       if (activityOption) {
         // Determinar duração e distância com base nas preferências do usuário
@@ -580,59 +706,113 @@ function selectRestDayActivities(profile: UserProfile, restDays: number, isDeloa
   return restDayActivitiesList
 }
 
-// Função para gerar recomendações de suplementos
+// Função para gerar recomendações de suplementos sem duplicatas
 function generateSupplementRecommendations(profile: UserProfile): SupplementRecommendation[] {
   const goalSpecificSupplements = supplementRecommendations[profile.fitnessGoals] || []
 
   // Filtrar suplementos que o usuário já está tomando
   const userSupplements = profile.supplements || []
-  const filteredSupplements = [...goalSpecificSupplements, ...generalSupplements].filter(
-    (supplement) => !userSupplements.includes(supplement.name),
-  )
+
+  // Combinar suplementos específicos e gerais, removendo duplicatas por nome
+  const allSupplements = [...goalSpecificSupplements, ...generalSupplements]
+  const uniqueSupplements: SupplementRecommendation[] = []
+  const supplementNames = new Set<string>()
+
+  // Filtrar suplementos únicos e que o usuário não está tomando
+  allSupplements.forEach((supplement) => {
+    if (!supplementNames.has(supplement.name) && !userSupplements.includes(supplement.name)) {
+      supplementNames.add(supplement.name)
+      uniqueSupplements.push(supplement)
+    }
+  })
 
   // Ordenar por prioridade
   const priorityOrder = { essential: 0, recommended: 1, optional: 2 }
-  filteredSupplements.sort(
+  uniqueSupplements.sort(
     (a, b) =>
       priorityOrder[a.priority as keyof typeof priorityOrder] - priorityOrder[b.priority as keyof typeof priorityOrder],
   )
 
-  return filteredSupplements
+  return uniqueSupplements
 }
 
-// Função para gerar recomendações de sono
+// Função para gerar recomendações de sono mais elaboradas
 function generateSleepRecommendations(profile: UserProfile): string[] {
   const recommendations: string[] = []
+  const sleepWeekday = profile.sleepWeekday
+  const sleepWeekend = profile.sleepWeekend
+  const fitnessGoal = profile.fitnessGoals
+  const fitnessLevel = profile.fitnessLevel
+  const age = profile.age
 
   // Verificar se o usuário dorme o suficiente durante a semana
-  if (profile.sleepWeekday < 7) {
+  if (sleepWeekday < 7) {
     recommendations.push(
       "Você está dormindo menos de 7 horas durante a semana, o que pode comprometer sua recuperação e resultados. Tente aumentar seu tempo de sono para 7-9 horas por noite.",
     )
   }
 
   // Verificar se o usuário dorme o suficiente no fim de semana
-  if (profile.sleepWeekend < 7) {
+  if (sleepWeekend < 7) {
     recommendations.push(
       "Mesmo nos fins de semana, você está dormindo menos do que o recomendado. O sono é crucial para recuperação muscular e hormônios anabólicos.",
     )
   }
 
   // Verificar se há grande diferença entre semana e fim de semana
-  if (Math.abs(profile.sleepWeekend - profile.sleepWeekday) > 2) {
+  if (Math.abs(sleepWeekend - sleepWeekday) > 2) {
     recommendations.push(
       "Há uma grande diferença entre seu sono durante a semana e no fim de semana. Tente manter um padrão mais consistente para melhorar a qualidade do sono e recuperação.",
     )
   }
 
   // Recomendações baseadas no objetivo
-  if (profile.fitnessGoals === "muscleGain") {
+  if (fitnessGoal === "muscleGain") {
     recommendations.push(
       "Para maximizar o ganho de massa muscular, priorize 8-9 horas de sono por noite. O hormônio do crescimento é liberado principalmente durante o sono profundo.",
+      "Sugestão de rotina: Deite-se 9 horas antes do horário que precisa acordar. Reserve os últimos 30 minutos antes de dormir para relaxamento sem telas.",
+      "Considere um shake de caseína antes de dormir para fornecer aminoácidos durante a noite, período importante para recuperação muscular.",
     )
-  } else if (profile.fitnessGoals === "weightLoss") {
+  } else if (fitnessGoal === "weightLoss") {
     recommendations.push(
       "Dormir bem é essencial para perda de peso. A privação de sono pode aumentar a fome e reduzir o metabolismo.",
+      "Sugestão de rotina: Mantenha um horário consistente para dormir e acordar, mesmo nos fins de semana. Evite refeições pesadas 3 horas antes de dormir.",
+      "Estudos mostram que dormir menos de 7 horas por noite está associado a maior dificuldade em perder peso e maior probabilidade de escolhas alimentares menos saudáveis.",
+    )
+  } else if (fitnessGoal === "endurance") {
+    recommendations.push(
+      "Para melhorar a resistência, o sono adequado é fundamental para a recuperação cardiovascular e muscular.",
+      "Sugestão de rotina: Priorize 7-8 horas de sono de qualidade. Considere uma soneca curta (20-30 minutos) nos dias de treinos mais intensos.",
+      "A qualidade do sono afeta diretamente sua capacidade de recuperação entre sessões de treino e seu desempenho aeróbico.",
+    )
+  } else if (fitnessGoal === "strength") {
+    recommendations.push(
+      "O sono é crucial para ganhos de força, pois é quando ocorre a maior parte da recuperação neural e muscular.",
+      "Sugestão de rotina: Priorize 8 horas de sono por noite. Mantenha seu quarto fresco (entre 18-20°C) para melhorar a qualidade do sono profundo.",
+      "A privação de sono pode reduzir significativamente sua capacidade de gerar força máxima e prejudicar seu progresso.",
+    )
+  }
+
+  // Recomendações baseadas na idade
+  if (age < 30) {
+    recommendations.push(
+      "Para adultos jovens, 7-9 horas de sono são recomendadas. Mesmo sendo jovem, não subestime a importância do sono para recuperação e resultados.",
+    )
+  } else if (age >= 30 && age < 50) {
+    recommendations.push(
+      "Entre 30-50 anos, a qualidade do sono tende a diminuir naturalmente. Considere estratégias como reduzir a exposição à luz azul à noite e manter o quarto completamente escuro.",
+    )
+  } else {
+    recommendations.push(
+      "Após os 50 anos, é comum ter mais dificuldade para dormir. Considere técnicas de relaxamento como meditação ou respiração profunda antes de dormir. Evite álcool, que pode parecer ajudar a adormecer, mas prejudica a qualidade do sono.",
+    )
+  }
+
+  // Recomendações baseadas no nível de condicionamento
+  if (fitnessLevel === "advanced") {
+    recommendations.push(
+      "Como atleta avançado, seu corpo precisa de recuperação otimizada. Considere monitorar seu sono com um aplicativo ou dispositivo para identificar padrões e melhorar a qualidade.",
+      "Sugestão de rotina avançada: Implemente ciclos de sono consistentes, técnicas de respiração profunda antes de dormir, e considere suplementos naturais como magnésio ou chá de camomila se tiver dificuldade para relaxar.",
     )
   }
 
@@ -640,8 +820,9 @@ function generateSleepRecommendations(profile: UserProfile): string[] {
   recommendations.push(
     "Estabeleça uma rotina de sono consistente, indo para a cama e acordando nos mesmos horários todos os dias.",
     "Evite cafeína e álcool nas 4-6 horas antes de dormir.",
-    "Crie um ambiente escuro, silencioso e fresco para dormir.",
-    "Evite telas (celular, TV, computador) pelo menos 30 minutos antes de dormir.",
+    "Crie um ambiente escuro, silencioso e fresco para dormir (temperatura ideal entre 18-20°C).",
+    "Evite telas (celular, TV, computador) pelo menos 30-60 minutos antes de dormir devido à luz azul que suprime a melatonina.",
+    "Considere uma rotina relaxante antes de dormir: leitura, alongamento leve, meditação ou um banho morno podem sinalizar ao corpo que é hora de desacelerar.",
   )
 
   return recommendations

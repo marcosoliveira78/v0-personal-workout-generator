@@ -20,11 +20,13 @@ export interface Workout {
   type: "strength" | "cardio" | "hiit" | "flexibility" | "recovery"
   targetMuscleGroups: string[]
   estimatedDuration: number
+  timePerExercise?: number // Tempo estimado por exercício
   warmup: string[]
   exercises: Exercise[]
   cooldown: string[]
   intensity?: "light" | "moderate" | "high" | "deload" // Intensidade do treino
   notes?: string
+  dayOfWeek?: number // Dia da semana (0 = segunda, 1 = terça, etc.)
 }
 
 export interface RestDayActivity {
@@ -47,10 +49,19 @@ export interface WorkoutWeek {
 }
 
 export interface BodyMetrics {
-  weight: number
-  height: number
-  bodyFatPercentage: number
-  muscleMass: number
+  imc: number
+  imcCategory: string
+  basalMetabolicRate: number
+  dailyCalorieNeeds: number
+  bodyFatPercentageEstimate: number
+  waistCircumference?: number // Circunferência abdominal
+  hipCircumference?: number // Circunferência dos quadris
+  chestCircumference?: number // Circunferência do peito/tórax
+  armCircumference?: number // Circunferência dos braços
+  thighCircumference?: number // Circunferência das coxas
+  calfCircumference?: number // Circunferência das panturrilhas
+  waistToHipRatio?: number // Relação cintura-quadril
+  bodyMassIndex?: number // IMC calculado
 }
 
 export interface SupplementRecommendation {
@@ -74,4 +85,19 @@ export interface WorkoutPlan {
   supplementRecommendations?: SupplementRecommendation[]
   sleepRecommendations?: string[]
   notes?: string
+}
+
+export interface RestActivityOption {
+  id: string
+  label: string
+  description: string
+  hasDuration: boolean
+  hasDistance: boolean
+  defaultMinDuration?: number
+  defaultMaxDuration?: number
+  defaultMinDistance?: number
+  defaultMaxDistance?: number
+  unit?: string
+  intensityRange: string
+  benefits: string[]
 }

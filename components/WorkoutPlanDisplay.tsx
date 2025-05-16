@@ -174,14 +174,77 @@ export default function WorkoutPlanDisplay({ workoutPlan }: WorkoutPlanDisplayPr
                     <p className="text-2xl font-bold">{workoutPlan.bodyMetrics.dailyCalorieNeeds} kcal</p>
                   </div>
                 </div>
-                <div className="mt-6">
-                  <h3 className="font-medium mb-2">Estimativa de Gordura Corporal</h3>
-                  <p className="text-2xl font-bold">{workoutPlan.bodyMetrics.bodyFatPercentageEstimate}%</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Esta é uma estimativa aproximada baseada no IMC e idade. Para medições mais precisas, considere
-                    métodos como bioimpedância ou dobras cutâneas.
-                  </p>
+
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <h3 className="font-medium">Estimativa de Gordura Corporal</h3>
+                    <p className="text-2xl font-bold">{workoutPlan.bodyMetrics.bodyFatPercentageEstimate}%</p>
+                    <p className="text-sm text-muted-foreground">
+                      Esta é uma estimativa aproximada baseada no IMC e idade. Para medições mais precisas, considere
+                      métodos como bioimpedância ou dobras cutâneas.
+                    </p>
+                  </div>
+
+                  {workoutPlan.bodyMetrics.waistToHipRatio && (
+                    <div className="space-y-2">
+                      <h3 className="font-medium">Relação Cintura-Quadril</h3>
+                      <p className="text-2xl font-bold">{workoutPlan.bodyMetrics.waistToHipRatio.toFixed(2)}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Indicador importante para avaliar riscos à saúde relacionados à distribuição de gordura
+                        corporal.
+                      </p>
+                    </div>
+                  )}
                 </div>
+
+                {(workoutPlan.bodyMetrics.waistCircumference ||
+                  workoutPlan.bodyMetrics.hipCircumference ||
+                  workoutPlan.bodyMetrics.chestCircumference ||
+                  workoutPlan.bodyMetrics.armCircumference ||
+                  workoutPlan.bodyMetrics.thighCircumference ||
+                  workoutPlan.bodyMetrics.calfCircumference) && (
+                  <div className="mt-6">
+                    <h3 className="font-medium mb-3">Medidas Corporais</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {workoutPlan.bodyMetrics.waistCircumference && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Cintura</p>
+                          <p className="text-xl">{workoutPlan.bodyMetrics.waistCircumference} cm</p>
+                        </div>
+                      )}
+                      {workoutPlan.bodyMetrics.hipCircumference && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Quadril</p>
+                          <p className="text-xl">{workoutPlan.bodyMetrics.hipCircumference} cm</p>
+                        </div>
+                      )}
+                      {workoutPlan.bodyMetrics.chestCircumference && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Tórax</p>
+                          <p className="text-xl">{workoutPlan.bodyMetrics.chestCircumference} cm</p>
+                        </div>
+                      )}
+                      {workoutPlan.bodyMetrics.armCircumference && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Braços</p>
+                          <p className="text-xl">{workoutPlan.bodyMetrics.armCircumference} cm</p>
+                        </div>
+                      )}
+                      {workoutPlan.bodyMetrics.thighCircumference && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Coxas</p>
+                          <p className="text-xl">{workoutPlan.bodyMetrics.thighCircumference} cm</p>
+                        </div>
+                      )}
+                      {workoutPlan.bodyMetrics.calfCircumference && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium">Panturrilhas</p>
+                          <p className="text-xl">{workoutPlan.bodyMetrics.calfCircumference} cm</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -231,36 +294,40 @@ export default function WorkoutPlanDisplay({ workoutPlan }: WorkoutPlanDisplayPr
             </CardHeader>
             <CardContent className="overflow-x-auto">
               <div className="min-w-[800px]">
-                <table className="w-full border-collapse">
+                <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr>
-                      <th className="border p-2 bg-muted">Semana</th>
-                      <th className="border p-2 bg-muted">Segunda</th>
-                      <th className="border p-2 bg-muted">Terça</th>
-                      <th className="border p-2 bg-muted">Quarta</th>
-                      <th className="border p-2 bg-muted">Quinta</th>
-                      <th className="border p-2 bg-muted">Sexta</th>
-                      <th className="border p-2 bg-muted">Sábado</th>
-                      <th className="border p-2 bg-muted">Domingo</th>
+                      <th className="border p-2 bg-muted">Sem</th>
+                      <th className="border p-2 bg-muted">Seg</th>
+                      <th className="border p-2 bg-muted">Ter</th>
+                      <th className="border p-2 bg-muted">Qua</th>
+                      <th className="border p-2 bg-muted">Qui</th>
+                      <th className="border p-2 bg-muted">Sex</th>
+                      <th className="border p-2 bg-muted">Sáb</th>
+                      <th className="border p-2 bg-muted">Dom</th>
                     </tr>
                   </thead>
                   <tbody>
                     {workoutPlan.weeks.map((week) => (
                       <tr key={week.weekNumber}>
-                        <td className="border p-2 font-medium">
-                          Semana {week.weekNumber}
-                          {week.isDeloadWeek ? " (Deload)" : ""}
+                        <td className="border p-1 font-medium text-center">
+                          {week.weekNumber}
+                          {week.isDeloadWeek ? "D" : ""}
                         </td>
                         {Array.from({ length: 7 }).map((_, dayIndex) => {
-                          // Determinar se este dia tem um treino ou é um dia de descanso
-                          const isWorkoutDay = dayIndex < week.workouts.length
-                          const isRestDay = !isWorkoutDay
+                          // Encontrar o treino para este dia da semana
+                          const workout = week.workouts.find((w) => w.dayOfWeek === dayIndex)
+                          const isWorkoutDay = !!workout
 
-                          // Obter o treino ou atividade de descanso para este dia
-                          const workout = isWorkoutDay ? week.workouts[dayIndex] : null
-                          const restActivity = isRestDay
-                            ? week.restDayActivities[dayIndex - week.workouts.length]
-                            : null
+                          // Se não for dia de treino, verificar se é dia de descanso
+                          const restDayIndex =
+                            week.workouts.length > 0
+                              ? week.workouts.filter((w) => w.dayOfWeek < dayIndex).length
+                              : dayIndex
+                          const restActivity =
+                            !isWorkoutDay && restDayIndex < week.restDayActivities.length
+                              ? week.restDayActivities[restDayIndex]
+                              : null
 
                           // Determinar a classe CSS com base no tipo de dia
                           let bgClass = ""
@@ -271,18 +338,22 @@ export default function WorkoutPlanDisplay({ workoutPlan }: WorkoutPlanDisplayPr
                           }
 
                           return (
-                            <td key={dayIndex} className={`border p-2 ${bgClass}`}>
+                            <td key={dayIndex} className={`border p-1 ${bgClass} text-xs`}>
                               {isWorkoutDay ? (
                                 <div>
-                                  <div className="font-medium">{workout?.name.split(" - ")[0]}</div>
+                                  <div className="font-medium text-xs">{workout.targetMuscleGroups.join(", ")}</div>
                                   <div className="text-xs text-muted-foreground">
-                                    {workout?.targetMuscleGroups.join(", ")}
+                                    {workout.exercises
+                                      .slice(0, 2)
+                                      .map((ex) => ex.name)
+                                      .join(", ")}
+                                    {workout.exercises.length > 2 ? "..." : ""}
                                   </div>
                                 </div>
                               ) : (
                                 <div>
-                                  <div className="font-medium">
-                                    {restActivity ? restActivity.name : "Descanso Total"}
+                                  <div className="font-medium text-xs">
+                                    {restActivity ? restActivity.name : "Descanso"}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
                                     {restActivity ? `${restActivity.duration} min` : "Recuperação"}
@@ -328,9 +399,7 @@ function WorkoutDayCard({ workout, day }: { workout: Workout; day: number }) {
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>
-              Dia {day}: {workout.name}
-            </CardTitle>
+            <CardTitle>{workout.name}</CardTitle>
             <CardDescription>{workout.description}</CardDescription>
           </div>
           <div className="flex gap-2">
@@ -344,7 +413,10 @@ function WorkoutDayCard({ workout, day }: { workout: Workout; day: number }) {
       <CardContent>
         <div className="mb-4">
           <p className="font-medium">Músculos alvo: {workout.targetMuscleGroups.join(", ")}</p>
-          <p className="text-sm text-muted-foreground">Duração: {workout.estimatedDuration} minutos</p>
+          <p className="text-sm text-muted-foreground">
+            Duração: {workout.estimatedDuration} minutos
+            {workout.timePerExercise && ` (aprox. ${workout.timePerExercise} min por exercício)`}
+          </p>
         </div>
 
         <div className="space-y-4">

@@ -55,11 +55,27 @@ export function calculateBodyMetrics(profile: UserProfile): BodyMetrics {
   // Limitar o percentual de gordura a valores razoáveis
   bodyFatPercentageEstimate = Math.max(5, Math.min(bodyFatPercentageEstimate, 50))
 
-  return {
+  // Calcular relação cintura-quadril se as medidas estiverem disponíveis
+  let waistToHipRatio = undefined
+  if (profile.waistCircumference && profile.hipCircumference) {
+    waistToHipRatio = profile.waistCircumference / profile.hipCircumference
+  }
+
+  // Criar objeto de métricas corporais com todas as medidas disponíveis
+  const bodyMetrics: BodyMetrics = {
     imc: Number.parseFloat(imc.toFixed(2)),
     imcCategory,
     basalMetabolicRate: Math.round(basalMetabolicRate),
     dailyCalorieNeeds,
     bodyFatPercentageEstimate: Number.parseFloat(bodyFatPercentageEstimate.toFixed(1)),
+    waistToHipRatio,
+    waistCircumference: profile.waistCircumference,
+    hipCircumference: profile.hipCircumference,
+    chestCircumference: profile.chestCircumference,
+    armCircumference: profile.armCircumference,
+    thighCircumference: profile.thighCircumference,
+    calfCircumference: profile.calfCircumference,
   }
+
+  return bodyMetrics
 }
