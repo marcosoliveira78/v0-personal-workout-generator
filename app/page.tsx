@@ -32,7 +32,7 @@ export default function Home() {
 
   return (
     <main className="container mx-auto py-8 px-4">
-      <h1 className="text-3xl font-bold text-center mb-8">Gerador de Treinos Personalizado</h1>
+      <h1 className="text-3xl font-bold text-center mb-8">Gerador Pessoal de Treinos</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-4xl mx-auto">
         <TabsList className="grid w-full grid-cols-2">
@@ -57,7 +57,7 @@ export default function Home() {
                 <WorkoutPlanDisplay workoutPlan={workoutPlan} />
                 <div className="flex justify-end mt-4">
                   <Button variant="outline" onClick={() => setActiveTab("profile")}>
-                    Editar Perfil
+                    Editar Perfil do Usuário
                   </Button>
                 </div>
               </CardContent>

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import type { WorkoutPlan, Workout, Exercise, RestDayActivity } from "@/types/Workout"
 import type { SupplementRecommendation } from "@/types/UserProfile"
+import PDFPreviewModal from "./PDFPreviewModal"
+import PDFExportButton from "./PDFExportButton"
 
 interface WorkoutPlanDisplayProps {
   workoutPlan: WorkoutPlan
@@ -34,7 +36,10 @@ export default function WorkoutPlanDisplay({ workoutPlan }: WorkoutPlanDisplayPr
           {workoutPlan.focusArea}.
         </p>
       </div>
-
+      <div className="flex gap-2">
+          <PDFPreviewModal workoutPlan={workoutPlan} />
+          <PDFExportButton workoutPlan={workoutPlan} />
+        </div>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="workout">Treinos</TabsTrigger>
