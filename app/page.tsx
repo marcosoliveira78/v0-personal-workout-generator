@@ -20,7 +20,7 @@ export default function Home() {
     setIsGenerating(true)
     setUserProfile(profile)
 
-    // Simular um pequeno atraso para mostrar o estado de carregamento
+    // Este trecho serve para Simular um pequeno atraso para mostrar o estado de carregamento
     // Em uma aplicação real, isso seria o tempo de processamento do servidor
     setTimeout(() => {
       const plan = generateWorkoutPlan(profile)
