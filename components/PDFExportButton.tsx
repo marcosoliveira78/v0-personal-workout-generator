@@ -8,40 +8,46 @@ import type { WorkoutPlan } from "@/types/Workout"
 import { toast } from "sonner"
 
 interface PDFExportButtonProps {
-    workoutPlan: WorkoutPlan
-    className?: string
-    variant?: "default" | "outline" | "secondary" | "ghost" | "link" | "destructive"
+  workoutPlan: WorkoutPlan
+  className?: string
+  variant?: "default" | "outline" | "secondary" | "ghost" | "link" | "destructive"
 }
 
 export default function PDFExportButton({ workoutPlan, className, variant = "default" }: PDFExportButtonProps) {
-    const [isExporting, setIsExporting] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
 
-    const handleExport = async () => {
-        try {
-            setIsExporting(true)
-            await exportWorkoutPlanToPDF(workoutPlan)
-            toast.success("PDF exportado com sucesso!")
-        } catch (error) {
-            console.error("Erro ao exportar PDF:", error)
-            toast.error("Erro ao exportar o PDF. Por favor, tente novamente.")
-        } finally {
-            setIsExporting(false)
-        }
+  const handleExport = async () => {
+    try {
+      setIsExporting(true)
+
+      // Verificar se as bibliotecas necessárias estão disponíveis
+      if (typeof window === "undefined") {
+        throw new Error("Esta função só pode ser executada no navegador")
+      }
+
+      await exportWorkoutPlanToPDF(workoutPlan)
+      toast.success("PDF exportado com sucesso!")
+    } catch (error) {
+      console.error("Erro ao exportar PDF:", error)
+      toast.error("Erro ao exportar o PDF. Por favor, tente novamente.")
+    } finally {
+      setIsExporting(false)
     }
+  }
 
-    return (
-        <Button onClick={handleExport} disabled={isExporting} className={className} variant={variant}>
-            {isExporting ? (
-                <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Exportando...
-                </>
-            ) : (
-                <>
-                    <Download className="mr-2 h-4 w-4" />
-                    Exportar PDF
-                </>
-            )}
-        </Button>
-    )
+  return (
+    <Button onClick={handleExport} disabled={isExporting} className={className} variant={variant}>
+      {isExporting ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Exportando...
+        </>
+      ) : (
+        <>
+          <Download className="mr-2 h-4 w-4" />
+          Exportar PDF
+        </>
+      )}
+    </Button>
+  )
 }
